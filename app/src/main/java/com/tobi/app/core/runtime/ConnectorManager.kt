@@ -199,7 +199,7 @@ class ConnectorManager(
         )
     }
 
-    private fun persist(manifest: ConnectorManifest, jsText: String, sourceUrl: String?): InstalledConnector {
+    private suspend fun persist(manifest: ConnectorManifest, jsText: String, sourceUrl: String?): InstalledConnector {
         val connectorId = manifest.connectorId.ifBlank { "connector_${System.currentTimeMillis()}" }
         val dir = File(context.filesDir, "connectors/$connectorId")
         dir.mkdirs()

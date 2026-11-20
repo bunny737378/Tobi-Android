@@ -7,11 +7,12 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
+import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.webkit.WebRequest
 import com.tobi.app.core.network.SessionVault
 import com.tobi.app.core.network.hostOf
 import java.util.concurrent.CountDownLatch
@@ -91,7 +92,7 @@ class SniffActivity : Activity() {
                 handler.postDelayed({ finishWithResult(finishedUrl) }, waitMs.coerceIn(1000L, 30000L))
             }
 
-            override fun shouldInterceptRequest(view: WebView, request: WebRequest): WebResourceResponse? {
+            override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val requestUrl = request.url.toString()
                 if (matchesPattern(requestUrl, patterns)) {
                     intercepted.add(InterceptedRequest(requestUrl, HashMap(request.requestHeaders)))
@@ -99,9 +100,9 @@ class SniffActivity : Activity() {
                 return null
             }
 
-            override fun onReceivedError(view: WebView, request: WebRequest, errorCode: Int, description: String, failingUrl: String) {
-                super.onReceivedError(view, request, errorCode, description, failingUrl)
-                finishWithResult(failingUrl)
+            override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
+                super.onReceivedError(view, request, error)
+                if (request.isForMainFrame) finishWithResult(request.url.toString())
             }
         }
         setContentView(view)

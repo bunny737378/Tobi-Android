@@ -654,7 +654,7 @@ fun HairlineDivider(modifier: Modifier = Modifier) {
 
 @Composable
 fun EmptyState(
-    icon: ImageVector,
+    icon: ImageVector = Icons.Filled.Info,
     title: String,
     message: String,
     actionLabel: String? = null,
@@ -703,10 +703,10 @@ fun ShimmerBox(modifier: Modifier = Modifier, cornerRadius: Dp = 10.dp) {
     val palette = LocalTobiPalette.current
     val transition = rememberInfiniteTransition(label = "shimmer")
     val offset by transition.animateFloat(
-        initialValue = -400f,
-        targetValue = 400f,
-        animation = infiniteRepeatable(animationSpec = tween(1400), repeatMode = RepeatMode.Reverse),
-        label = "shimmerOffset"
+        -400f,
+        400f,
+        infiniteRepeatable(tween(1400), RepeatMode.Reverse),
+        "shimmerOffset"
     )
     val brush = Brush.linearGradient(
         colors = listOf(palette.surface1, palette.surface2, palette.surface1),

@@ -1,21 +1,16 @@
 package com.tobi.app.core.player
 
 import android.content.Context
-import android.os.Handler
-import android.os.Looper
-import androidx.media3.common.text.Cue
+import android.widget.FrameLayout
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.SubtitleView
-import com.google.common.collect.ImmutableList
 
-class DelayedSubtitleView(context: Context) : SubtitleView(context) {
+@UnstableApi
+class DelayedSubtitleView(context: Context) : FrameLayout(context) {
     var delayMs: Long = 0
-    private val handler = Handler(Looper.getMainLooper())
+    val subtitleView = SubtitleView(context)
 
-    override fun onCues(cues: ImmutableList<Cue>) {
-        if (delayMs <= 0) {
-            super.onCues(cues)
-        } else {
-            handler.postDelayed({ super.onCues(cues) }, delayMs)
-        }
+    init {
+        addView(subtitleView, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
     }
 }
