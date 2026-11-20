@@ -139,9 +139,11 @@ class SessionVault(context: Context) {
             lockedUserAgent(host)?.let { merged["User-Agent"] = it }
         }
         net?.headers?.forEach { (key, value) -> merged[key] = value }
-        val attach = net?.attachCookies != false
+        val attach = net?.attachCookies ?: connectorDefault?.attachCookies ?: true
         if (attach && host.isNotEmpty()) {
-            val scopeHost = net?.cookieScope?.takeIf { it.isNotBlank() } ?: host
+            val scopeHost = net?.cookieScope?.takeIf { it.isNotBlank() }
+                ?: connectorDefault?.cookieScope?.takeIf { it.isNotBlank() }
+                ?: host
             val cookieHeader = cookieHeaderFor(scopeHost)
             if (cookieHeader.isNotEmpty()) {
                 merged["Cookie"] = cookieHeader

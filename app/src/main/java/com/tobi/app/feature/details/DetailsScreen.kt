@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -34,9 +35,13 @@ import com.tobi.app.core.designsystem.MetadataRow
 import com.tobi.app.core.designsystem.TobiButton
 import com.tobi.app.core.designsystem.TobiOutlinedButton
 import com.tobi.app.core.player.PlayerRequest
+import com.tobi.app.core.protocol.MediaGroup
 import com.tobi.app.core.protocol.ProfilePayload
 import com.tobi.app.core.protocol.UnitItem
+import com.tobi.app.core.protocol.isDownloadOnly
+import com.tobi.app.core.runtime.EntryContextStore
 import com.tobi.app.core.runtime.OpResult
+import com.tobi.app.core.runtime.userMessage
 import com.tobi.app.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,8 +51,10 @@ import kotlinx.coroutines.launch
 data class DetailsUiState(
     val connectorId: String = "",
     val uid: String = "",
+    val entryCarry: Map<String, String> = emptyMap(),
     val profile: ProfilePayload? = null,
     val loading: Boolean = false,
+    val loadingGroups: Set<String> = emptySet(),
     val error: String? = null
 )
 
@@ -57,20 +64,63 @@ class DetailsViewModel(private val container: AppContainer) : ViewModel() {
 
     fun load(connectorId: String, uid: String) {
         if (state.value.connectorId == connectorId && state.value.uid == uid && state.value.profile != null) return
-        mutableState.value = DetailsUiState(connectorId, uid, loading = true)
+        val entry = EntryContextStore.get(connectorId, uid)
+        mutableState.value = DetailsUiState(
+            connectorId = connectorId,
+            uid = uid,
+            entryCarry = entry?.carry.orEmpty(),
+            loading = true
+        )
         viewModelScope.launch {
             val runtime = container.runtimeForId(connectorId)
             if (runtime == null) {
                 mutableState.value = mutableState.value.copy(loading = false, error = "Connector not found")
                 return@launch
             }
-            when (val result = runtime.fetchProfile(uid, emptyMap(), null)) {
+            when (val result = runtime.fetchProfile(uid, entry?.carry.orEmpty(), entry?.visuals?.net)) {
                 is OpResult.Ok -> mutableState.value = mutableState.value.copy(
                     profile = result.envelope.payload,
                     loading = false,
-                    error = result.envelope.fault?.summary
+                    error = null
                 )
-                is OpResult.Err -> mutableState.value = mutableState.value.copy(loading = false, error = "Could not load details")
+                is OpResult.Err -> mutableState.value = mutableState.value.copy(
+                    loading = false,
+                    error = result.error.userMessage()
+                )
+            }
+        }
+    }
+
+    fun loadGroup(group: MediaGroup) {
+        if (!group.deferredUnits || group.units.isNotEmpty() || group.groupId in state.value.loadingGroups) return
+        val connectorId = state.value.connectorId
+        mutableState.value = state.value.copy(loadingGroups = state.value.loadingGroups + group.groupId, error = null)
+        viewModelScope.launch {
+            val runtime = container.runtimeForId(connectorId)
+            if (runtime == null) {
+                mutableState.value = mutableState.value.copy(
+                    loadingGroups = mutableState.value.loadingGroups - group.groupId,
+                    error = "Connector not found"
+                )
+                return@launch
+            }
+            when (val result = runtime.fetchUnits(group.groupId, 1, null, group.carry)) {
+                is OpResult.Ok -> {
+                    val units = result.envelope.payload?.units.orEmpty()
+                    val profile = mutableState.value.profile
+                    mutableState.value = mutableState.value.copy(
+                        profile = profile?.copy(
+                            groups = profile.groups.map { current ->
+                                if (current.groupId == group.groupId) current.copy(units = units, deferredUnits = false) else current
+                            }
+                        ),
+                        loadingGroups = mutableState.value.loadingGroups - group.groupId
+                    )
+                }
+                is OpResult.Err -> mutableState.value = mutableState.value.copy(
+                    loadingGroups = mutableState.value.loadingGroups - group.groupId,
+                    error = result.error.userMessage()
+                )
             }
         }
     }
@@ -99,7 +149,8 @@ class DetailsViewModel(private val container: AppContainer) : ViewModel() {
             kind = profile.kind,
             groupId = profile.groups.firstOrNull { group -> group.units.any { it.unitId == unit?.unitId } }?.groupId,
             episodeLabel = unit?.name,
-            isLive = profile.liveSchedule != null
+            isLive = profile.liveSchedule != null,
+            downloadOnly = profile.isDownloadOnly()
         )
     }
 }
@@ -122,6 +173,7 @@ fun DetailsScreen(
             item {
                 ArtworkImage(
                     url = profile.visuals?.banner ?: profile.visuals?.cover,
+                    headers = profile.visuals?.net?.headers.orEmpty(),
                     modifier = Modifier.fillMaxWidth().height(250.dp),
                     fallbackTitle = profile.name,
                     cornerRadius = 0.dp
@@ -134,7 +186,12 @@ fun DetailsScreen(
                     Spacer(Modifier.height(14.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         viewModel.playerRequest()?.let { request ->
-                            TobiButton("Play", { onPlay(request) }, icon = Icons.Filled.PlayArrow)
+                            val downloadOnly = profile.isDownloadOnly()
+                            TobiButton(
+                                if (downloadOnly) "Download" else "Play",
+                                { onPlay(request) },
+                                icon = if (downloadOnly) Icons.Filled.Download else Icons.Filled.PlayArrow
+                            )
                         }
                         TobiOutlinedButton("Watchlist", viewModel::toggleWatchlist, icon = Icons.Filled.BookmarkAdd)
                     }
@@ -146,7 +203,16 @@ fun DetailsScreen(
             }
             profile.groups.forEach { group ->
                 item {
-                    Text(group.label ?: "Episodes", color = palette.textPrimary, modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp))
+                    Column(Modifier.padding(horizontal = 20.dp, vertical = 12.dp)) {
+                        Text(group.label ?: "Episodes", color = palette.textPrimary)
+                        if (group.deferredUnits && group.units.isEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            TobiOutlinedButton(
+                                text = if (group.groupId in state.loadingGroups) "Loading…" else "Load episodes",
+                                onClick = { viewModel.loadGroup(group) }
+                            )
+                        }
+                    }
                 }
                 items(group.units.size, key = { group.units[it].unitId }) { index ->
                     val unit = group.units[index]
@@ -154,7 +220,12 @@ fun DetailsScreen(
                         modifier = Modifier.fillMaxWidth().clickable { viewModel.playerRequest(unit)?.let(onPlay) }.padding(horizontal = 20.dp, vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ArtworkImage(unit.visuals?.thumb, modifier = Modifier.height(72.dp).fillMaxWidth(0.32f), fallbackTitle = unit.index?.toString())
+                        ArtworkImage(
+                            unit.visuals?.thumb,
+                            headers = unit.visuals?.net?.headers.orEmpty(),
+                            modifier = Modifier.height(72.dp).fillMaxWidth(0.32f),
+                            fallbackTitle = unit.index?.toString()
+                        )
                         Column(Modifier.weight(1f).padding(start = 14.dp)) {
                             Text(unit.name ?: "Episode ${unit.index ?: index + 1}", color = palette.textPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis)
                             unit.synopsis?.let { Text(it, color = palette.textMuted, maxLines = 2, overflow = TextOverflow.Ellipsis) }

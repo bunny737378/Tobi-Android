@@ -23,6 +23,7 @@ import com.tobi.app.core.designsystem.TobiSearchBar
 import com.tobi.app.core.protocol.CatalogRequest
 import com.tobi.app.core.protocol.EntryCard
 import com.tobi.app.core.runtime.OpResult
+import com.tobi.app.core.runtime.userMessage
 import com.tobi.app.di.AppContainer
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -77,7 +78,7 @@ class SearchViewModel(private val container: AppContainer) : ViewModel() {
                 entries = result.envelope.payload?.entries.orEmpty(),
                 error = result.envelope.fault?.summary
             )
-            is OpResult.Err -> mutableState.value = mutableState.value.copy(loading = false, error = "Search failed")
+            is OpResult.Err -> mutableState.value = mutableState.value.copy(loading = false, error = result.error.userMessage())
         }
     }
 }

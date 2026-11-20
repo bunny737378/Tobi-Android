@@ -105,9 +105,17 @@ class NetworkModule(
             .build()
         val requestBuilder = Request.Builder().url(url)
         headers.forEach { (key, value) -> requestBuilder.header(key, value) }
+        val contentType = headers.entries
+            .firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }
+            ?.value
+            ?.toMediaTypeOrNull()
+            ?: "application/octet-stream".toMediaTypeOrNull()
+        val requestBody = (body ?: "").toRequestBody(contentType)
         when (method.uppercase()) {
-            "POST" -> requestBuilder.post((body ?: "").toByteArray().toRequestBody("application/octet-stream".toMediaTypeOrNull()))
-            "PUT" -> requestBuilder.put((body ?: "").toByteArray().toRequestBody("application/octet-stream".toMediaTypeOrNull()))
+            "POST" -> requestBuilder.post(requestBody)
+            "PUT" -> requestBuilder.put(requestBody)
+            "PATCH" -> requestBuilder.patch(requestBody)
+            "DELETE" -> if (body == null) requestBuilder.delete() else requestBuilder.delete(requestBody)
             "HEAD" -> requestBuilder.head()
             else -> requestBuilder.get()
         }

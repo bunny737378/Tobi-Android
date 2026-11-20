@@ -1,6 +1,8 @@
 package com.tobi.app.core.player
 
 import android.app.PictureInPictureParams
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Rational
 import android.view.ViewGroup
@@ -12,7 +14,14 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.tobi.app.TobiApplication
+import com.tobi.app.core.protocol.Acquisition
+import com.tobi.app.core.protocol.DeliveryKinds
+import com.tobi.app.core.protocol.StreamSource
+import com.tobi.app.core.protocol.isDeferred
+import com.tobi.app.core.protocol.isReady
+import com.tobi.app.core.protocol.normalizeDelivery
 import com.tobi.app.core.runtime.OpResult
+import com.tobi.app.core.runtime.userMessage
 import kotlinx.coroutines.launch
 
 @UnstableApi
@@ -57,17 +66,55 @@ class PlayerActivity : ComponentActivity() {
             }
             when (val result = runtime.resolveMedia(targetId, activeRequest.carry, activeRequest.net)) {
                 is OpResult.Err -> {
-                    showError("Could not resolve media")
+                    showError(result.error.userMessage())
                     return
                 }
                 is OpResult.Ok -> {
-                    val source = result.envelope.payload?.sources?.sortedByDescending { it.priority }?.firstOrNull { it.uri != null }
-                    if (source == null) {
-                        showError(result.envelope.fault?.summary ?: "No playable source")
+                    val bundle = result.envelope.payload
+                    if (bundle == null) {
+                        showError("Connector returned an empty media bundle")
                         return
                     }
+                    if (activeRequest.downloadOnly || bundle.sources.isEmpty()) {
+                        val acquisition = bundle.acquisitions.firstOrNull()
+                        if (acquisition != null) {
+                            handleAcquisition(container, activeRequest, acquisition)
+                            return
+                        }
+                    }
+                    var source = bundle.sources
+                        .filter { it.isReady() }
+                        .sortedByDescending { it.priority }
+                        .firstOrNull()
+                    if (source == null) {
+                        val deferred = bundle.sources
+                            .filter { it.isDeferred() }
+                            .sortedByDescending { it.priority }
+                            .firstOrNull()
+                        if (deferred != null) {
+                            source = when (val resolved = runtime.resolveDeferredSource(deferred.sourceId, deferred.resolverCarry)) {
+                                is OpResult.Ok -> resolved.envelope.payload?.source
+                                is OpResult.Err -> {
+                                    showError(resolved.error.userMessage())
+                                    return
+                                }
+                            }
+                        }
+                    }
+                    if (source == null) {
+                        val acquisition = bundle.acquisitions.firstOrNull()
+                        if (acquisition != null) {
+                            handleAcquisition(container, activeRequest, acquisition)
+                        } else {
+                            showError("No playable source or download target was returned")
+                        }
+                        return
+                    }
+                    val mergedSource = source.copy(
+                        captions = (source.captions + bundle.sharedCaptions).distinctBy { "${it.uri}\u0000${it.langCode}" }
+                    )
                     val connector = container.connectorManager.getInstalled(activeRequest.connectorId)
-                    PlayerEngine.buildMediaSource(this, source, connector?.manifest()?.defaultNet, container.vault)
+                    PlayerEngine.buildMediaSource(this, mergedSource, connector?.manifest()?.defaultNet, container.vault)
                 }
             }
         }
@@ -80,6 +127,34 @@ class PlayerActivity : ComponentActivity() {
                 showError(error.message ?: "Playback failed")
             }
         })
+    }
+
+    private suspend fun handleAcquisition(
+        container: com.tobi.app.di.AppContainer,
+        activeRequest: PlayerRequest,
+        acquisition: Acquisition
+    ) {
+        val uri = acquisition.uri
+        if (uri.isNullOrBlank()) {
+            showError("Download target has no URI")
+            return
+        }
+        when (normalizeDelivery(acquisition.delivery)) {
+            DeliveryKinds.MANAGED_HTTP -> {
+                runCatching {
+                    container.downloadRepository.enqueue(activeRequest.connectorId, activeRequest.title, acquisition)
+                }.onSuccess {
+                    showError("Download queued")
+                }.onFailure {
+                    showError(it.message ?: "Could not queue download")
+                }
+            }
+            DeliveryKinds.BROWSER_HANDOFF, DeliveryKinds.MAGNET -> {
+                runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(uri))) }
+                    .onFailure { showError("No app can open this download target") }
+            }
+            else -> showError("Unsupported acquisition delivery: ${acquisition.delivery}")
+        }
     }
 
     private fun showError(message: String) {

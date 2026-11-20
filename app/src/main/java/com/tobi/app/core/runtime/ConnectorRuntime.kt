@@ -36,6 +36,13 @@ sealed interface ConnectorError {
     data object NotSupported : ConnectorError
 }
 
+fun ConnectorError.userMessage(): String = when (this) {
+    is ConnectorError.FaultError -> fault.summary ?: fault.reason
+    is ConnectorError.ScriptError -> "Connector script failed: $message"
+    is ConnectorError.ParseError -> "Connector response could not be read: $message"
+    ConnectorError.NotSupported -> "This connector does not support this operation"
+}
+
 sealed interface OpResult<out T> {
     data class Ok<T>(val envelope: MmcpEnvelope<T>) : OpResult<T>
     data class Err(val error: ConnectorError) : OpResult<Nothing>
@@ -130,15 +137,25 @@ class ConnectorRuntime(
             RuntimeLog.log("error", "[$connectorId] $functionName parse error: ${e.message}", connectorId)
             return OpResult.Err(ConnectorError.ParseError(e.message ?: "parse error"))
         }
-        if (!envelope.ok && envelope.fault != null && !retried) {
-            val reason = normalizeFaultReason(envelope.fault.reason)
-            val recovery = normalizeRecovery(envelope.fault.recovery)
-            if (reason == FaultReasons.CHALLENGE_GATE && recovery == RecoveryActions.SOLVE_IN_WEBVIEW) {
-                val solved = challengeCoordinator.solve(envelope.fault)
-                if (solved) {
-                    return callInternal(functionName, args, payloadSerializer, retried = true)
+        if (!envelope.ok) {
+            val fault = envelope.fault ?: Fault(
+                reason = FaultReasons.UNKNOWN,
+                summary = "Connector returned an unsuccessful response without fault details"
+            )
+            if (!retried) {
+                val reason = normalizeFaultReason(fault.reason)
+                val recovery = normalizeRecovery(fault.recovery)
+                if (reason == FaultReasons.CHALLENGE_GATE && recovery == RecoveryActions.SOLVE_IN_WEBVIEW) {
+                    val solved = challengeCoordinator.solve(fault)
+                    if (solved) {
+                        return callInternal(functionName, args, payloadSerializer, retried = true)
+                    }
                 }
             }
+            return OpResult.Err(ConnectorError.FaultError(fault))
+        }
+        if (envelope.payload == null) {
+            return OpResult.Err(ConnectorError.ParseError("Successful envelope has no payload"))
         }
         return OpResult.Ok(envelope)
     }

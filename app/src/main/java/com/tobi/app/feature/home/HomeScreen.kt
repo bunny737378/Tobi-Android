@@ -25,6 +25,7 @@ import com.tobi.app.core.protocol.EntryCard
 import com.tobi.app.core.protocol.FeedPayload
 import com.tobi.app.core.runtime.InstalledConnector
 import com.tobi.app.core.runtime.OpResult
+import com.tobi.app.core.runtime.userMessage
 import com.tobi.app.di.AppContainer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -64,7 +65,7 @@ class HomeViewModel(private val container: AppContainer) : ViewModel() {
                 loading = false,
                 error = result.envelope.fault?.summary
             )
-            is OpResult.Err -> mutableState.value = mutableState.value.copy(loading = false, error = "Could not load this connector")
+            is OpResult.Err -> mutableState.value = mutableState.value.copy(loading = false, error = result.error.userMessage())
         }
     }
 }

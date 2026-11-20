@@ -31,6 +31,7 @@ import androidx.navigation.navArgument
 import com.tobi.app.core.player.PlayerActivity
 import com.tobi.app.core.player.PlayerRequest
 import com.tobi.app.core.player.PlayerSessionStore
+import com.tobi.app.core.runtime.EntryContextStore
 import com.tobi.app.di.AppContainer
 import com.tobi.app.feature.connectors.ConnectorManagerScreen
 import com.tobi.app.feature.connectors.ConnectorManagerViewModel
@@ -95,14 +96,20 @@ fun TobiNavHost(container: AppContainer) {
                 val vm: HomeViewModel = viewModel(factory = container.viewModelFactory)
                 HomeScreen(
                     viewModel = vm,
-                    onOpenEntry = { connector, entry -> navController.navigate("details/${Uri.encode(connector)}/${Uri.encode(entry.uid)}") },
+                    onOpenEntry = { connector, entry ->
+                        EntryContextStore.put(connector, entry)
+                        navController.navigate("details/${Uri.encode(connector)}/${Uri.encode(entry.uid)}")
+                    },
                     onOpenCatalog = { navController.navigate("search") },
                     onOpenConnectors = { navController.navigate("connectors") }
                 )
             }
             composable("search") {
                 val vm: SearchViewModel = viewModel(factory = container.viewModelFactory)
-                SearchScreen(vm) { connector, entry -> navController.navigate("details/${Uri.encode(connector)}/${Uri.encode(entry.uid)}") }
+                SearchScreen(vm) { connector, entry ->
+                    EntryContextStore.put(connector, entry)
+                    navController.navigate("details/${Uri.encode(connector)}/${Uri.encode(entry.uid)}")
+                }
             }
             composable("library") {
                 val vm: LibraryViewModel = viewModel(factory = container.viewModelFactory)

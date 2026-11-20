@@ -29,7 +29,8 @@ data class PlayerRequest(
     val queueIndex: Int = 0,
     val startPositionMs: Long = 0,
     val localFilePath: String? = null,
-    val isLive: Boolean = false
+    val isLive: Boolean = false,
+    val downloadOnly: Boolean = false
 )
 
 object PlayerSessionStore {

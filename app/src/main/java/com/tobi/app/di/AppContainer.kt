@@ -21,6 +21,9 @@ import com.tobi.app.core.runtime.WebViewSniffer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
@@ -43,6 +46,20 @@ class AppContainer(context: Context) {
     val downloadRepository = DownloadRepository(database, downloadEngine)
     val viewModelFactory = AppViewModelFactory(this)
     private val runtimes = ConcurrentHashMap<String, ConnectorRuntime>()
+
+    init {
+        scope.launch {
+            challengeCoordinator.pending.filterNotNull().collectLatest { fault ->
+                val target = fault.targetUri
+                if (target.isNullOrBlank()) {
+                    challengeCoordinator.complete(false)
+                } else {
+                    val result = runCatching { sniffer.sniff(target, 15_000, emptyList()) }.getOrNull()
+                    challengeCoordinator.complete(result != null && result.finalUrl.isNotBlank())
+                }
+            }
+        }
+    }
 
     fun runtimeFor(connector: InstalledConnector): ConnectorRuntime {
         return runtimes.computeIfAbsent(connector.connectorId) {
