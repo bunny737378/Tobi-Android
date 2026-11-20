@@ -1,0 +1,13 @@
+-keep class com.tobi.app.core.protocol.** { *; }
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
+-keepclassmembers class kotlinx.serialization.json.** { *; }
+-keep,includedescriptorclasses class com.tobi.app.**$$serializer { *; }
+-keepclassmembers class com.tobi.app.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep @kotlinx.serialization.Serializable class com.tobi.app.** { *** Companion; }
+-keepclassmembers class com.tobi.app.** { *** Companion; }
+-keepclasseswithmembers class com.tobi.app.** { kotlinx.serialization.KSerializer serializer(...); }
+-keep class app.cash.quickjs.** { *; }
+-keep class androidx.media3.** { *; }
+-keep class coil3.** { *; }
+-keep class androidx.room.** { *; }

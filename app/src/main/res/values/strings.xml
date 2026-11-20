@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Tobi</string>
+    <string name="download_channel_name">Downloads</string>
+    <string name="download_channel_description">Download progress and status</string>
+</resources>

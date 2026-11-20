@@ -1,0 +1,23 @@
+{
+  "connectorId": "tobi.demo",
+  "displayName": "Tobi Demo",
+  "version": "1.0.0",
+  "protocolVersion": 1,
+  "maintainer": "Tobi",
+  "summary": "A public test connector for checking browsing and playback.",
+  "locales": ["en"],
+  "matureContent": false,
+  "features": {
+    "feed": true,
+    "catalogSearch": true,
+    "dynamicFilters": false,
+    "deferredSources": false,
+    "downloads": false,
+    "needsWebViewBridge": false
+  },
+  "defaultNet": {
+    "headers": {},
+    "attachCookies": false,
+    "lockUserAgent": false
+  }
+}
