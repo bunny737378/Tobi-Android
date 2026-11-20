@@ -94,15 +94,16 @@ class JsEngine(private val bridge: NativeBridge) {
                 error: function() { var parts = []; for (var i = 0; i < arguments.length; i++) { parts.push(String(arguments[i])); } Bridge.log("error", parts.join(" ")); },
                 warn: function() { var parts = []; for (var i = 0; i < arguments.length; i++) { parts.push(String(arguments[i])); } Bridge.log("warn", parts.join(" ")); }
             };
-            globalThis.fetch = async function(url, opts) {
+            globalThis.__tobiAll = function(values) { return values; };
+            globalThis.fetch = function(url, opts) {
                 var o = opts || {};
                 var res = Bridge.http.send({ method: o.method || "GET", url: String(url), headers: o.headers || {}, body: o.body || null });
                 return {
                     ok: res.status >= 200 && res.status < 300,
                     status: res.status,
                     url: res.finalUrl,
-                    text: async function() { return res.bodyText; },
-                    json: async function() { return JSON.parse(res.bodyText); },
+                    text: function() { return res.bodyText; },
+                    json: function() { return JSON.parse(res.bodyText); },
                     headers: { get: function(n) { return res.headers[n] || null; } }
                 };
             };
@@ -114,13 +115,16 @@ class JsEngine(private val bridge: NativeBridge) {
                 trimmed.startsWith("import ") || trimmed.startsWith("import\"") || trimmed.startsWith("import'") || trimmed.startsWith("export *")
             }.joinToString("\n")
             var transformed = withoutImports
-            transformed = transformed.replace(Regex("""export\s+async\s+function"""), "async function")
+            transformed = transformed.replace(Regex("""export\s+async\s+function"""), "function")
             transformed = transformed.replace(Regex("""export\s+function"""), "function")
             transformed = transformed.replace(Regex("""export\s+const\s+"""), "const ")
             transformed = transformed.replace(Regex("""export\s+let\s+"""), "let ")
             transformed = transformed.replace(Regex("""export\s+var\s+"""), "var ")
             transformed = transformed.replace(Regex("""export\s+default\s+"""), "")
             transformed = transformed.replace(Regex("""export\s*\{[^}]*\};?"""), "")
+            transformed = transformed.replace(Regex("""\basync\s+"""), "")
+            transformed = transformed.replace(Regex("""\bawait\s+"""), "")
+            transformed = transformed.replace("Promise.all", "__tobiAll")
             return transformed
         }
     }
