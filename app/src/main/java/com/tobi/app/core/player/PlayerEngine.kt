@@ -35,6 +35,8 @@ object PlayerEngine {
         return ExoPlayer.Builder(context)
             .setRenderersFactory(renderersFactory)
             .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10000)
+            .setSeekForwardIncrementMs(10000)
             .build().apply {
                 setAudioAttributes(
                     AudioAttributes.Builder()
@@ -45,8 +47,6 @@ object PlayerEngine {
                 )
                 setWakeMode(C.WAKE_MODE_NETWORK)
                 setHandleAudioBecomingNoisy(true)
-                setSeekBackIncrementMs(10000)
-                setSeekForwardIncrementMs(10000)
             }
     }
 
