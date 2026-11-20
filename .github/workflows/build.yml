@@ -29,7 +29,8 @@ jobs:
           status=$?
           cat build.log
           if [ "$status" -ne 0 ]; then
-            message=$(tail -c 12000 build.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
+            grep -n -E '(^e: | error: |FAILURE:|What went wrong|Could not|Exception|Unresolved reference|does not exist|Execution failed)' build.log | tail -n 250 > errors.log || true
+            message=$(cat errors.log | sed ':a;N;$!ba;s/%/%25/g;s/\r/%0D/g;s/\n/%0A/g')
             echo "::error title=Gradle build failed::$message"
           fi
           exit "$status"
