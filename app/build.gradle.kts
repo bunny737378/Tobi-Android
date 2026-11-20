@@ -14,8 +14,18 @@ android {
         applicationId = "com.tobi.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
+    }
+
+    signingConfigs {
+        create("stableDebug") {
+            storeFile = file("tobi-debug.p12")
+            storePassword = "tobi-debug"
+            keyAlias = "tobi-debug"
+            keyPassword = "tobi-debug"
+            storeType = "PKCS12"
+        }
     }
 
     buildTypes {
@@ -26,6 +36,7 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("stableDebug")
         }
     }
 

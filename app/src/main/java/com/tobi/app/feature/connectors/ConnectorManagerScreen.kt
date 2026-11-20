@@ -52,6 +52,13 @@ class ConnectorManagerViewModel(private val container: AppContainer) : ViewModel
     }
 
     fun setActive(id: String) = container.connectorRepository.setActive(id)
+    fun configValue(connectorId: String, key: String, defaultValue: String?): String {
+        return container.vault.connectorPrefs(connectorId).getString(key, defaultValue).orEmpty()
+    }
+    fun setConfigValue(connectorId: String, key: String, value: String) {
+        container.vault.connectorPrefs(connectorId).edit().putString(key, value).apply()
+        container.invalidateRuntime(connectorId)
+    }
     fun setEnabled(id: String, enabled: Boolean) = viewModelScope.launch {
         container.connectorManager.setEnabled(id, enabled)
         container.invalidateRuntime(id)
@@ -101,6 +108,21 @@ fun ConnectorManagerScreen(viewModel: ConnectorManagerViewModel) {
                             TobiOutlinedButton("Use", { viewModel.setActive(connector.connectorId) })
                             if (connector.sourceUrl != null) TobiOutlinedButton("Update", { viewModel.update(connector.connectorId) })
                             TobiOutlinedButton("Remove", { viewModel.uninstall(connector.connectorId) })
+                        }
+                        connector.manifest().userConfigSchema.forEach { field ->
+                            var value by remember(connector.connectorId, field.key) {
+                                mutableStateOf(viewModel.configValue(connector.connectorId, field.key, field.defaultValue))
+                            }
+                            OutlinedTextField(
+                                value = value,
+                                onValueChange = {
+                                    value = it
+                                    viewModel.setConfigValue(connector.connectorId, field.key, it)
+                                },
+                                label = { Text(field.label) },
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                                singleLine = true
+                            )
                         }
                     }
                 }

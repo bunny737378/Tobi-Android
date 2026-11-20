@@ -207,6 +207,16 @@ class ConnectorManager(
         scriptFile.writeText(jsText)
         val manifestJson = ConnectorJson.encodeToString(ConnectorManifest.serializer(), manifest)
         writeMeta(scriptFile.absolutePath, manifestJson)
+        val connectorPreferences = vault.connectorPrefs(connectorId)
+        val preferenceEditor = connectorPreferences.edit()
+        var hasNewDefaults = false
+        manifest.userConfigSchema.forEach { field ->
+            if (!connectorPreferences.contains(field.key) && field.defaultValue != null) {
+                preferenceEditor.putString(field.key, field.defaultValue)
+                hasNewDefaults = true
+            }
+        }
+        if (hasNewDefaults) preferenceEditor.apply()
         val now = System.currentTimeMillis()
         val existing = dao.getById(connectorId)
         val entity = InstalledConnectorEntity(
