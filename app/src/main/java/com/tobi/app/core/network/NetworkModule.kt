@@ -18,6 +18,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import java.net.InetSocketAddress
 import java.net.Proxy
 import java.util.concurrent.TimeUnit
+import java.util.zip.GZIPInputStream
+import java.util.zip.InflaterInputStream
 
 class VaultCookieJar(private val vault: SessionVault) : CookieJar {
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
@@ -112,7 +114,15 @@ class NetworkModule(
         client.newCall(requestBuilder.build()).execute().use { response ->
             val responseHeaders = LinkedHashMap<String, String>()
             response.headers.forEach { (name, value) -> responseHeaders[name] = value }
-            val bodyText = response.body?.string() ?: ""
+            val responseBody = response.body
+            val charset = responseBody?.contentType()?.charset(Charsets.UTF_8) ?: Charsets.UTF_8
+            val contentEncoding = response.header("Content-Encoding").orEmpty().lowercase()
+            val bodyText = when {
+                responseBody == null -> ""
+                contentEncoding.contains("gzip") -> GZIPInputStream(responseBody.byteStream()).reader(charset).use { it.readText() }
+                contentEncoding.contains("deflate") -> InflaterInputStream(responseBody.byteStream()).reader(charset).use { it.readText() }
+                else -> responseBody.string()
+            }
             return SimpleHttpResult(
                 status = response.code,
                 finalUrl = response.request.url.toString(),

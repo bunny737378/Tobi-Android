@@ -132,7 +132,6 @@ class SessionVault(context: Context) {
     fun buildHeaders(net: NetPolicy?, connectorDefault: NetPolicy?, url: String): Map<String, String> {
         val merged = LinkedHashMap<String, String>()
         merged["User-Agent"] = DEFAULT_USER_AGENT
-        merged["Accept-Encoding"] = "gzip"
         connectorDefault?.headers?.forEach { (key, value) -> merged[key] = value }
         val host = hostOf(url)
         val lockRequested = net?.lockUserAgent == true || connectorDefault?.lockUserAgent == true
