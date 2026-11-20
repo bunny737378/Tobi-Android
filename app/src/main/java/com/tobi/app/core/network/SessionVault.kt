@@ -17,7 +17,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
@@ -38,19 +37,23 @@ class SessionVault(context: Context) {
     private val userAgentsKey = stringPreferencesKey("vault_user_agents")
 
     init {
-        runBlocking {
+        scope.launch {
             appContext.sessionDataStore.data.collect { prefs ->
-                val cookiesJson = prefs[cookiesKey]
-                if (cookiesJson != null) {
-                    val parsed = ConnectorJson.decodeFromString(CookieMapSerializer, cookiesJson)
-                    cookieSnapshot.clear()
-                    parsed.forEach { (host, values) -> cookieSnapshot[host] = values.toMutableList() }
+                prefs[cookiesKey]?.let { cookiesJson ->
+                    runCatching {
+                        ConnectorJson.decodeFromString(CookieMapSerializer, cookiesJson)
+                    }.onSuccess { parsed ->
+                        cookieSnapshot.clear()
+                        parsed.forEach { (host, values) -> cookieSnapshot[host] = values.toMutableList() }
+                    }
                 }
-                val uaJson = prefs[userAgentsKey]
-                if (uaJson != null) {
-                    val parsed = ConnectorJson.decodeFromString(StringMapSerializer, uaJson)
-                    userAgentSnapshot.clear()
-                    userAgentSnapshot.putAll(parsed)
+                prefs[userAgentsKey]?.let { userAgentsJson ->
+                    runCatching {
+                        ConnectorJson.decodeFromString(StringMapSerializer, userAgentsJson)
+                    }.onSuccess { parsed ->
+                        userAgentSnapshot.clear()
+                        userAgentSnapshot.putAll(parsed)
+                    }
                 }
             }
         }
