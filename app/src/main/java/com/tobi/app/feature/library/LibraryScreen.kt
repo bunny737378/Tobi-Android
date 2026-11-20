@@ -34,6 +34,8 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 
 data class LibraryUiState(
     val history: List<WatchHistoryEntity> = emptyList(),
@@ -50,10 +52,7 @@ class LibraryViewModel(private val container: AppContainer) : ViewModel() {
     fun resume(item: WatchHistoryEntity): PlayerRequest {
         val carry = runCatching {
             ConnectorJson.decodeFromString(
-                kotlinx.serialization.builtins.MapSerializer(
-                    kotlinx.serialization.builtins.serializer(),
-                    kotlinx.serialization.builtins.serializer()
-                ), item.carryJson
+                MapSerializer(String.serializer(), String.serializer()), item.carryJson
             )
         }.getOrDefault(emptyMap())
         return PlayerRequest(

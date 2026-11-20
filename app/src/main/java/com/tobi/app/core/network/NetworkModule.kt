@@ -7,10 +7,10 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.Dns
-import okhttp3.DnsOverHttps
+import okhttp3.dnsoverhttps.DnsOverHttps
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
-import okhttp3.ProxySelector
+import java.net.ProxySelector
 import okhttp3.Request
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody

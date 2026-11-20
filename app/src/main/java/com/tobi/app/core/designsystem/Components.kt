@@ -45,6 +45,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -62,9 +63,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -81,7 +83,9 @@ import com.tobi.app.core.protocol.Acquisition
 import com.tobi.app.core.protocol.EntryCard
 import com.tobi.app.core.protocol.Shelf
 import com.tobi.app.core.protocol.StreamSource
+import com.tobi.app.core.protocol.ResolutionStates
 import com.tobi.app.core.protocol.normalizeCardStyle
+import com.tobi.app.core.protocol.normalizeResolutionState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -139,7 +143,7 @@ fun PressableCard(
     content: @Composable BoxScope.() -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState(interaction)
+    val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
         targetValue = if (pressed) 0.97f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
@@ -153,13 +157,9 @@ fun PressableCard(
     )
 }
 
-private fun Modifier.graphicsLayerCompat(scale: Float): Modifier {
-    return this.then(
-        androidx.compose.ui.Modifier.graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }
-    )
+private fun Modifier.graphicsLayerCompat(scale: Float): Modifier = graphicsLayer {
+    scaleX = scale
+    scaleY = scale
 }
 
 @Composable
@@ -705,7 +705,7 @@ fun ShimmerBox(modifier: Modifier = Modifier, cornerRadius: Dp = 10.dp) {
     val offset by transition.animateFloat(
         initialValue = -400f,
         targetValue = 400f,
-        animationSpec = infiniteRepeatable(animationSpec = tween(1400), repeatMode = RepeatMode.Reverse),
+        animation = infiniteRepeatable(animationSpec = tween(1400), repeatMode = RepeatMode.Reverse),
         label = "shimmerOffset"
     )
     val brush = Brush.linearGradient(
@@ -725,6 +725,7 @@ fun SkeletonCard(aspectRatio: Float, modifier: Modifier = Modifier) {
     ShimmerBox(modifier = modifier.aspectRatio(aspectRatio))
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TobiSheet(
     onDismiss: () -> Unit,
@@ -774,16 +775,7 @@ fun TobiSearchBar(
             }
         },
         singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = palette.surface1,
-            unfocusedContainerColor = palette.surface1,
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent,
-            focusedTextColor = palette.textPrimary,
-            unfocusedTextColor = palette.textPrimary,
-            cursorColor = palette.accent
-        )
+        shape = RoundedCornerShape(12.dp)
     )
 }
 
@@ -805,8 +797,9 @@ fun SourcePickerSheet(
             } else {
                 sources.forEach { source ->
                     val label = source.displayLabel ?: source.hostName ?: source.sourceId
-                    val deferred = source.isDeferred()
-                    val ready = source.isReady()
+                    val state = normalizeResolutionState(source.resolutionState)
+                    val deferred = state == ResolutionStates.DEFERRED
+                    val ready = state == ResolutionStates.READY
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()

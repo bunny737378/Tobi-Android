@@ -18,6 +18,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import okhttp3.Cookie
 import okhttp3.CookieJar
 import okhttp3.HttpUrl
@@ -39,13 +42,13 @@ class SessionVault(context: Context) {
             appContext.sessionDataStore.data.collect { prefs ->
                 val cookiesJson = prefs[cookiesKey]
                 if (cookiesJson != null) {
-                    val parsed = ConnectorJson.decodeFromString(MapSerializer, cookiesJson)
+                    val parsed = ConnectorJson.decodeFromString(CookieMapSerializer, cookiesJson)
                     cookieSnapshot.clear()
                     parsed.forEach { (host, values) -> cookieSnapshot[host] = values.toMutableList() }
                 }
                 val uaJson = prefs[userAgentsKey]
                 if (uaJson != null) {
-                    val parsed = ConnectorJson.decodeFromString(MapSerializer, uaJson)
+                    val parsed = ConnectorJson.decodeFromString(StringMapSerializer, uaJson)
                     userAgentSnapshot.clear()
                     userAgentSnapshot.putAll(parsed)
                 }
@@ -57,7 +60,7 @@ class SessionVault(context: Context) {
         val copy = HashMap(cookieSnapshot)
         scope.launch {
             appContext.sessionDataStore.edit { prefs ->
-                prefs[cookiesKey] = ConnectorJson.encodeToString(MapSerializer, copy)
+                prefs[cookiesKey] = ConnectorJson.encodeToString(CookieMapSerializer, copy)
             }
         }
     }
@@ -66,7 +69,7 @@ class SessionVault(context: Context) {
         val copy = HashMap(userAgentSnapshot)
         scope.launch {
             appContext.sessionDataStore.edit { prefs ->
-                prefs[userAgentsKey] = ConnectorJson.encodeToString(MapSerializer, copy)
+                prefs[userAgentsKey] = ConnectorJson.encodeToString(StringMapSerializer, copy)
             }
         }
     }
@@ -191,18 +194,17 @@ class SessionVault(context: Context) {
 
     companion object {
         const val DEFAULT_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36"
-        private val MapSerializer = MapSerializer
     }
 }
 
-private val MapSerializer = kotlinx.serialization.builtins.MapSerializer(
-    kotlinx.serialization.builtins.serializer<String>(),
-    kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>())
+private val CookieMapSerializer = MapSerializer(
+    String.serializer(),
+    ListSerializer(String.serializer())
 )
 
-private val StringMapSerializer = kotlinx.serialization.builtins.MapSerializer(
-    kotlinx.serialization.builtins.serializer<String>(),
-    kotlinx.serialization.builtins.serializer<String>()
+private val StringMapSerializer = MapSerializer(
+    String.serializer(),
+    String.serializer()
 )
 
 fun hostOf(url: String): String {

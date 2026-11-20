@@ -14,6 +14,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 
 class HistoryRepository(private val database: AppDatabase) {
     fun observeContinueWatching(): Flow<List<WatchHistoryEntity>> {
@@ -41,7 +43,7 @@ class HistoryRepository(private val database: AppDatabase) {
         isLive: Boolean
     ) = withContext(Dispatchers.IO) {
         val carryJson = ConnectorJson.encodeToString(
-            kotlinx.serialization.builtins.serializer<Map<String, String>>(),
+            MapSerializer(String.serializer(), String.serializer()),
             carry
         )
         val existing = if (unitId != null) {

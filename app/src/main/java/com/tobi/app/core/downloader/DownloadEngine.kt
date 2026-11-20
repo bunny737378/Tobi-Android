@@ -14,6 +14,8 @@ import com.tobi.app.core.protocol.ConnectorJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import java.io.File
 
 object DownloadStatus {
@@ -35,7 +37,7 @@ class DownloadEngine(
         val uri = acquisition.uri ?: throw IllegalArgumentException("Download URI is missing")
         val safeName = (acquisition.fileName ?: "$title.${acquisition.format ?: "mp4"}")
             .replace(Regex("[^A-Za-z0-9._ -]"), "_")
-        val headers = vault.buildHeaders(acquisition.net, emptyMap(), uri)
+        val headers = vault.buildHeaders(acquisition.net, null, uri)
         val id = database.downloadDao().insert(
             DownloadEntity(
                 connectorId = connectorId,
@@ -45,10 +47,7 @@ class DownloadEngine(
                 status = DownloadStatus.QUEUED,
                 totalBytes = acquisition.sizeBytes ?: 0,
                 headersJson = ConnectorJson.encodeToString(
-                    kotlinx.serialization.builtins.MapSerializer(
-                        kotlinx.serialization.builtins.serializer(),
-                        kotlinx.serialization.builtins.serializer()
-                    ), headers
+                    MapSerializer(String.serializer(), String.serializer()), headers
                 ),
                 netJson = acquisition.net?.let { ConnectorJson.encodeToString(com.tobi.app.core.protocol.NetPolicy.serializer(), it) },
                 isHls = acquisition.delivery.contains("hls", ignoreCase = true) || uri.substringBefore('?').endsWith(".m3u8", true),
