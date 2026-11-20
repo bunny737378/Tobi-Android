@@ -73,7 +73,7 @@ class ConnectorManager(
         val manifest = ConnectorJson.decodeFromString(ConnectorManifest.serializer(), manifestText)
         val jsText = when {
             !jsUrl.isNullOrBlank() -> downloadText(jsUrl)
-            url.endsWith(".json") -> downloadText(siblingUrl(url, "connector.js"))
+            url.substringBefore('?').endsWith(".json", ignoreCase = true) -> downloadCompanionScript(url)
             else -> downloadText(url)
         }
         persist(manifest, jsText, url)
@@ -238,9 +238,28 @@ class ConnectorManager(
         return result.bodyText
     }
 
+    private fun downloadCompanionScript(manifestUrl: String): String {
+        val candidates = listOf("connector.js", "index.js")
+        val failures = mutableListOf<String>()
+        candidates.forEach { fileName ->
+            val scriptUrl = siblingUrl(manifestUrl, fileName)
+            try {
+                return downloadText(scriptUrl)
+            } catch (error: Exception) {
+                failures += "$fileName: ${error.message}"
+            }
+        }
+        throw IllegalStateException(
+            "No connector script found beside the manifest. Expected connector.js or index.js. ${failures.joinToString("; ")}"
+        )
+    }
+
     private fun siblingUrl(url: String, fileName: String): String {
-        val base = url.substringBeforeLast("/")
-        return if (base.isBlank()) fileName else "$base/$fileName"
+        val cleanUrl = url.substringBefore('?')
+        val query = url.substringAfter('?', "").takeIf { it.isNotBlank() }
+        val base = cleanUrl.substringBeforeLast("/")
+        val sibling = if (base.isBlank()) fileName else "$base/$fileName"
+        return if (query == null) sibling else "$sibling?$query"
     }
 
     private fun InstalledConnectorEntity.toInstalled(): InstalledConnector {
